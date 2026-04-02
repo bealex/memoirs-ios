@@ -123,20 +123,7 @@ class FilteringTests: GenericTestCase {
     }
 
     func testTracingMemoirSpeed() async throws {
-        class Counter: @unchecked Sendable {
-            var counter: Int
-
-            init(counter: Int) {
-                self.counter = counter
-            }
-        }
-
-        let numberOfOutputs = 5000
-        let counter = Counter(counter: numberOfOutputs)
-
         let tracedMemoir = TracedMemoir(object: self, memoir: VoidMemoir())
-//        let tracedMemoir = TracedMemoir(object: self, memoir: PrintMemoir(time: .disabled))
-        TracedMemoir.asyncTaskQueue.executeAlongsideCallback = { counter.counter -= 1 }
 
         measure {
             for _ in 0 ..< 1000 {
@@ -146,10 +133,6 @@ class FilteringTests: GenericTestCase {
                     file: "Some Fime", function: "function", line: 239
                 )
             }
-        }
-
-        while counter.counter > 0 {
-            try await Task.sleep(for: .seconds(0.1))
         }
     }
 
@@ -211,29 +194,22 @@ class FilteringTests: GenericTestCase {
 
     func testTracingMemoirSpeedConcurrent() async throws {
         let tracedMemoir = TracedMemoir(object: self, memoir: VoidMemoir())
-//        let tracedMemoir = TracedMemoir(object: self, memoir: PrintMemoir(time: .disabled))
 
         let threads = 100
         let instances = 1000
 
-        var counter = threads * instances
-        TracedMemoir.asyncTaskQueue.executeAlongsideCallback = {
-            counter -= 1
-        }
-        for thread in 0 ..< threads {
-            Task.detached {
-                for instance in 0 ..< instances {
-                    tracedMemoir.append(
-                        .log(level: .info), message: "S \(thread) \(instance)", meta: nil,
-                        tracers: [], timeIntervalSinceReferenceDate: Date.timeIntervalSinceReferenceDate,
-                        file: "Some File", function: "function", line: 239
-                    )
+        await withTaskGroup(of: Void.self) { group in
+            for thread in 0 ..< threads {
+                group.addTask {
+                    for instance in 0 ..< instances {
+                        tracedMemoir.append(
+                            .log(level: .info), message: "S \(thread) \(instance)", meta: nil,
+                            tracers: [], timeIntervalSinceReferenceDate: Date.timeIntervalSinceReferenceDate,
+                            file: "Some File", function: "function", line: 239
+                        )
+                    }
                 }
             }
-        }
-
-        while counter > 0 {
-            try await Task.sleep(for: .seconds(0.1))
         }
     }
 

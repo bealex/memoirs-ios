@@ -101,7 +101,7 @@ public extension TracedMemoir {
         }
     }
 
-    var instanceId: String { get async { await traceData.tracer.string }}
+    var instanceId: String { tracer.string }
 
     convenience init(
         instanceWithDeviceInfo: DeviceInfo = .init(osInfo: .detected), instanceId: String = TracedMemoir.defaultInstanceId, memoir: Memoir,
@@ -126,7 +126,7 @@ public extension TracedMemoir {
         self.init(tracer: tracer, meta: meta, memoir: memoir, file: file, function: function, line: line)
     }
 
-    func updateSessionId(userId: String, isGuest: Bool) async {
-        await updateTracer(to: .session(userId: "\(isGuest ? "guest." : "")\(userId)"))
+    func updateSessionId(userId: String, isGuest: Bool) {
+        updateTracer(to: .session(userId: "\(isGuest ? "guest." : "")\(userId)"))
     }
 }

@@ -16,11 +16,11 @@ private let rootMemoir = PrintMemoir(tracerFilter: { _ in true })
 class TaskTracingTests: XCTestCase {
     func testTaskLocalInitialization() async throws {
         var tracer: Tracer?
-        let initialValue = await Tracing.localValue?.tracer.string
+        let initialValue = Tracing.localValue?.tracer.string
         XCTAssertNil(initialValue)
 
         let memoir = TracedMemoir(tracer: .label("TestTracer"), memoir: PrintMemoir())
-        await Tracing.$localValue.withValue(memoir) { tracer = await Tracing.localValue?.tracer }
+        await Tracing.$localValue.withValue(memoir) { tracer = Tracing.localValue?.tracer }
 
         XCTAssertEqual(tracer?.string, "TestTracer")
     }
@@ -28,7 +28,7 @@ class TaskTracingTests: XCTestCase {
     func testTracing() async throws {
         class TestTraceable {
             func test() async throws -> String? {
-                await Tracing.with(.label("NewTracer")) { memoir in await (memoir as? TracedMemoir)?.tracer.string }
+                await Tracing.with(.label("NewTracer")) { memoir in (memoir as? TracedMemoir)?.tracer.string }
             }
         }
 
@@ -46,7 +46,7 @@ class TaskTracingTests: XCTestCase {
 
             func test() async throws {
                 Tracing.withDetached(.label("DetachedTracer")) { memoir in
-                    self.result = await (memoir as? TracedMemoir)?.tracer.string
+                    self.result = (memoir as? TracedMemoir)?.tracer.string
                     self.expectation.fulfill()
                 }
             }

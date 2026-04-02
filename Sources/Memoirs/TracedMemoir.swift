@@ -8,112 +8,39 @@
 //
 
 import Foundation
+import Synchronization
 
-public final class TracedMemoir: Memoir {
-    actor TraceData {
-        private actor TracerSubscription {
-            private let onDispose: @Sendable () -> Void
-
-            public init(onDispose: @escaping @Sendable () -> Void) {
-                self.onDispose = onDispose
-            }
-
-            deinit {
-                onDispose()
-            }
-        }
-
-        private(set) var tracer: Tracer
-        private(set) var parent: TraceData?
-
-        private var updateSubscriptions: [String: @Sendable () async -> Void] = [:]
-        private var completionHandler: (@Sendable () async -> Void)?
-
-        private var internalTracerListCache: [Tracer]?
-        var allTracers: [Tracer] {
-            get async {
-                if let cached = internalTracerListCache {
-                    return cached
-                } else {
-                    await updateTracerListCache()
-                    return internalTracerListCache ?? []
-                }
-            }
-        }
-
-        private var parentUpdateSubscription: TracerSubscription?
-
-        init(tracer: Tracer, parent: TraceData?) {
-            self.tracer = tracer
-            self.parent = parent
-        }
-
-        func postInitialize() async {
-            parentUpdateSubscription = await parent?.subscribeOnUpdates { [weak self] in
-                await self?.updateTracerListCache()
-            }
-        }
-
-        private func subscribeOnUpdates(listener: @escaping @Sendable () async -> Void) -> TracerSubscription {
-            let id = UUID().uuidString
-            updateSubscriptions[id] = listener
-            return TracerSubscription { [self] in
-                Task {
-                    await unsubscribe(from: id)
-                }
-            }
-        }
-
-        private func unsubscribe(from id: String) {
-            updateSubscriptions[id] = nil
-        }
-
-        deinit {
-            if let completionHandler = completionHandler {
-                Task {
-                    await completionHandler()
-                }
-            }
-        }
-
-        func update(tracer: Tracer) async {
-            self.tracer = tracer
-            await updateTracerListCache()
-        }
-
-        func update(completionHandler: @escaping @Sendable () async -> Void) {
-            self.completionHandler = completionHandler
-        }
-
-        private func updateTracerListCache() async {
-            internalTracerListCache = [ tracer ] + (await parent?.allTracers ?? [])
-            for subscription in updateSubscriptions.values {
-                await subscription()
-            }
-        }
-    }
-
-    let traceData: TraceData
-
-    private let memoir: Memoir
+public final class TracedMemoir: Memoir, Sendable {
+    private let state: Mutex<Tracer>
+    private let parent: TracedMemoir?
+    private let memoir: any Memoir
     private let initTracer: Tracer?
+    private let managesLifecycle: Bool
+
     public var tracer: Tracer {
-        get async {
-            await traceData.tracer
-        }
+        state.withLock { $0 }
     }
+
     public var tracers: [Tracer] {
-        get async {
-            await traceData.allTracers
-        }
+        allTracers
     }
 
-    internal static let asyncTaskQueue: AsyncTaskQueue = .init(memoir: PrintMemoir())
+    private var allTracers: [Tracer] {
+        var result = [state.withLock { $0 }]
+        var current = parent
+        while let p = current {
+            result.append(p.state.withLock { $0 })
+            current = p.parent
+        }
+        return result
+    }
 
-    private init(tracer: Tracer, traceData: TraceData, memoir: Memoir) {
+    private init(tracer: Tracer, parent: TracedMemoir?, memoir: any Memoir) {
         self.initTracer = tracer
-        self.traceData = traceData
+        self.state = Mutex(tracer)
+        self.parent = parent
         self.memoir = memoir
+        self.managesLifecycle = false
     }
 
     public init(
@@ -121,24 +48,18 @@ public final class TracedMemoir: Memoir {
         file: String = #fileID, function: String = #function, line: UInt = #line
     ) {
         initTracer = tracer
+        state = Mutex(tracer)
 
         if let parentMemoir = memoir as? TracedMemoir {
-            traceData = .init(tracer: tracer, parent: parentMemoir.traceData)
+            self.parent = parentMemoir
             self.memoir = parentMemoir.memoir
         } else {
-            traceData = .init(tracer: tracer, parent: nil)
+            self.parent = nil
             self.memoir = memoir
         }
 
-        Task { [self] in
-            await traceData.postInitialize()
-            await traceData.update(completionHandler: { [weak self] in
-                guard let self else { return }
-
-                await self.memoir.finish(tracer: tracer, tracers: self.traceData.allTracers)
-            })
-            await self.memoir.update(tracer: tracer, meta: meta, tracers: traceData.allTracers, file: file, function: function, line: line)
-        }
+        managesLifecycle = true
+        self.memoir.update(tracer: tracer, meta: meta, tracers: allTracers, file: file, function: function, line: line)
     }
 
     public convenience init(
@@ -163,11 +84,7 @@ public final class TracedMemoir: Memoir {
     }
 
     public func with(tracer: Tracer) -> TracedMemoir {
-        let traceData = TraceData(tracer: tracer, parent: traceData)
-        Task {
-            await traceData.postInitialize()
-        }
-        return TracedMemoir(tracer: tracer, traceData: traceData, memoir: memoir)
+        TracedMemoir(tracer: tracer, parent: self, memoir: memoir)
     }
 
     public func withUnique(tracer: Tracer) -> TracedMemoir {
@@ -178,8 +95,8 @@ public final class TracedMemoir: Memoir {
         }
     }
 
-    public func updateTracer(to tracer: Tracer) async {
-        await traceData.update(tracer: tracer)
+    public func updateTracer(to tracer: Tracer) {
+        state.withLock { $0 = tracer }
     }
 
     public func append(
@@ -187,15 +104,19 @@ public final class TracedMemoir: Memoir {
         meta: @autoclosure () -> [String: SafeString]?, tracers: [Tracer], timeIntervalSinceReferenceDate: TimeInterval,
         file: String, function: String, line: UInt
     ) rethrows {
-        let meta = meta()
-        let message = try message()
-        Self.asyncTaskQueue.add {
-            let selfTracers = await self.traceData.allTracers
-            self.memoir.append(
-                item, message: message, meta: meta, tracers: tracers + selfTracers,
-                timeIntervalSinceReferenceDate: timeIntervalSinceReferenceDate,
-                file: file, function: function, line: line
-            )
+        let selfTracers = allTracers
+        try memoir.append(
+            item, message: message(), meta: meta(), tracers: tracers + selfTracers,
+            timeIntervalSinceReferenceDate: timeIntervalSinceReferenceDate,
+            file: file, function: function, line: line
+        )
+    }
+
+    deinit {
+        if managesLifecycle {
+            let tracer = state.withLock { $0 }
+            let tracers = allTracers
+            memoir.finish(tracer: tracer, tracers: tracers)
         }
     }
 }
