@@ -37,7 +37,7 @@ class TracerChangesTests: GenericTestCase {
             throw Problem.wrongLabelInLog(memoir, "Test log 1")
         }
 
-        await memoir.updateTracer(to: .label("Second"))
+        memoir.updateTracer(to: .label("Second"))
         memoir.debug("Test log 2")
 
         guard let result2 = try await logResult() else { throw Problem.noLogFromMemoir(memoir) }
@@ -58,7 +58,7 @@ class TracerChangesTests: GenericTestCase {
             throw Problem.wrongLabelInLog(memoir, "First, Second, Test log 1")
         }
 
-        await memoirParent.updateTracer(to: .label("Third"))
+        memoirParent.updateTracer(to: .label("Third"))
         memoir.debug("Test log 2")
 
         guard let result2 = try await logResult() else { throw Problem.noLogFromMemoir(memoir) }

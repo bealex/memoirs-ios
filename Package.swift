@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 //
 // Memoirs
 //
@@ -10,12 +10,11 @@
 import PackageDescription
 
 let swiftSettings: [SwiftSetting] = [
-    .enableExperimentalFeature("StrictConcurrency")
 ]
 
 let package = Package(
     name: "Memoirs",
-    platforms: [ .iOS(.v14), .tvOS(.v14), .watchOS(.v8), .macOS(.v13), .macCatalyst(.v14) ],
+    platforms: [ .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .macOS(.v15), .macCatalyst(.v18) ],
     products: [
         .library(name: "Memoirs", targets: [ "Memoirs" ]),
         .executable(name: "ExampleMemoirs", targets: [ "ExampleMemoirs" ]),
@@ -38,5 +37,5 @@ let package = Package(
         .testTarget(name: "MemoirsTests", dependencies: [ "Memoirs" ]),
         .executableTarget(name: "ExampleMemoirs", dependencies: [ "Memoirs" ], path: "Sources.Example"),
     ],
-    swiftLanguageVersions: [.v5]
+    swiftLanguageVersions: [.v6]
 )
