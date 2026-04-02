@@ -37,5 +37,5 @@ let package = Package(
         .testTarget(name: "MemoirsTests", dependencies: [ "Memoirs" ]),
         .executableTarget(name: "ExampleMemoirs", dependencies: [ "Memoirs" ], path: "Sources.Example"),
     ],
-    swiftLanguageVersions: [.v6]
+    swiftLanguageModes: [.v6]
 )
