@@ -83,6 +83,7 @@ class GenericTestCase: XCTestCase {
     }
 
     public let markers: Output.Markers = .init()
+
     let resultSaver: ResultSaver = .init()
 
     func testEmpty() {

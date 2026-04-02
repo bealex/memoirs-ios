@@ -10,20 +10,31 @@
 
 import XCTest
 import Foundation
+import Synchronization
 @testable import Memoirs
 
 // swiftlint:disable line_length
+
+private final class SendableBox<T: Sendable>: Sendable {
+    private let storage: Mutex<T>
+
+    init(_ value: T) { storage = .init(value) }
+
+    func set(_ value: T) { storage.withLock { $0 = value } }
+    var value: T { storage.withLock { $0 } }
+}
+
 class FilteringTests: GenericTestCase {
-    private var lastInterceptedOutput: String?
+    private let lastInterceptedOutput = SendableBox<String?>(nil)
     private var printMemoir: PrintMemoir!
 
     override func setUp() {
         super.setUp()
 
-        printMemoir = PrintMemoir(interceptor: { [self] logString in
+        printMemoir = PrintMemoir(interceptor: { [lastInterceptedOutput] logString in
             guard !logString.contains("Tracer: FilteringTests") && !logString.contains("Tracer: FilteringLabel") else { return }
 
-            lastInterceptedOutput = logString
+            lastInterceptedOutput.set(logString)
         })
     }
 
@@ -215,7 +226,7 @@ class FilteringTests: GenericTestCase {
 
     private func checkAllThings(
         memoir: Memoir, infoLog: Bool, debugLog: Bool, event: Bool, tracer: Bool, measurement: Bool,
-        file: StaticString = #file, line: UInt = #line
+        file: StaticString = #filePath, line: UInt = #line
     ) async throws {
         let infoLogTest: SafeString = "INFO LOG TESTING"
         let debugLogTest: SafeString = "DEBUG LOG TESTING"
@@ -231,21 +242,22 @@ class FilteringTests: GenericTestCase {
     }
 
     private func check(
-        memoir: Memoir, item: MemoirItem, message: SafeString = "", testValue: String, mustPresent: Bool, file: StaticString = #file, line: UInt = #line
+        memoir: Memoir, item: MemoirItem, message: SafeString = "", testValue: String, mustPresent: Bool, file: StaticString = #filePath, line: UInt = #line
     ) async throws {
-        lastInterceptedOutput = nil
+        lastInterceptedOutput.set(nil)
         memoir.append(
             item, message: message, meta: nil, tracers: [], timeIntervalSinceReferenceDate: Date.timeIntervalSinceReferenceDate,
             file: "", function: "", line: 0
         )
         let startTime = Date.timeIntervalSinceReferenceDate
-        while lastInterceptedOutput == nil {
+        while lastInterceptedOutput.value == nil {
             try await Task.sleep(for: .seconds(0.001))
             if Date.timeIntervalSinceReferenceDate - startTime > 0.01 {
                 break
             }
         }
-        let result = lastInterceptedOutput
+
+        let result = lastInterceptedOutput.value
 
         if mustPresent, let result, !result.contains(testValue) {
             XCTFail("Test string \"\(testValue)\" is NOT found in \"\(result)\"", file: file, line: line)

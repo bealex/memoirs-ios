@@ -20,7 +20,7 @@ class TaskTracingTests: XCTestCase {
         XCTAssertNil(initialValue)
 
         let memoir = TracedMemoir(tracer: .label("TestTracer"), memoir: PrintMemoir())
-        await Tracing.$localValue.withValue(memoir) { tracer = Tracing.localValue?.tracer }
+        Tracing.$localValue.withValue(memoir) { tracer = Tracing.localValue?.tracer }
 
         XCTAssertEqual(tracer?.string, "TestTracer")
     }
