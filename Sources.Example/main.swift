@@ -48,6 +48,7 @@ addedLabelMemoir.error("Install+LabelLog")
 
 mark = stopwatch.measureTime(from: mark, name: "Initialization")
 
+@MainActor
 func session() {
     stopwatch.measure(name: "Session") {
         let sessionMemoir = TracedMemoir(sessionWithUserId: UUID().uuidString, isGuest: true, memoir: addedLabelMemoir)
@@ -74,22 +75,20 @@ addedLabelMemoir.debug("Another instance level log")
 let statistics = CPUMemoryMeasurements(memoir: appMemoir)
 statistics.start(period: 1)
 
-DispatchQueue.global().async {
+Task { @MainActor in
     var naughtyStringIndex = -1
     while naughtyStringIndex < naughtyStrings.count {
-//        autoreleasepool {
-            naughtyStringIndex += 1
-            guard naughtyStringIndex < naughtyStrings.count else { return }
+        naughtyStringIndex += 1
+        guard naughtyStringIndex < naughtyStrings.count else { return }
 
-            let string = naughtyStrings[naughtyStringIndex]
-            addedLabelMemoir.debug("Another instance level log \(string)")
-            addedLabelMemoir.update(
-                tracer: .label("Some Tracer \(naughtyStringIndex)"),
-                meta: [ "meta1": "value1", "meta2": "value2", "meta3": "value3", ]
-            )
-            addedLabelMemoir.measurement(name: "Measurement \(naughtyStringIndex)", value: .double(23.9))
-            Thread.sleep(forTimeInterval: 0.01)
-//        }
+        let string = naughtyStrings[naughtyStringIndex]
+        addedLabelMemoir.debug("Another instance level log \(string)")
+        addedLabelMemoir.update(
+            tracer: .label("Some Tracer \(naughtyStringIndex)"),
+            meta: [ "meta1": "value1", "meta2": "value2", "meta3": "value3", ]
+        )
+        addedLabelMemoir.measurement(name: "Measurement \(naughtyStringIndex)", value: .double(23.9))
+        try? await Task.sleep(for: .milliseconds(10))
     }
 
     naughtyStrings = []
