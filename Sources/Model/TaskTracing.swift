@@ -77,8 +77,12 @@ public enum Tracing {
         operation: @escaping @Sendable (_ localMemoir: Memoir) async throws -> Void
     ) {
         let memoir = memoir().with(tracer: tracer)
-        Task.detached {
-            try await $localValue.withValue(memoir, operation: { try await operation(memoir) }, file: file, line: line)
+        let _ = Task.detached {
+            do {
+                try await $localValue.withValue(memoir, operation: { try await operation(memoir) }, file: file, line: line)
+            } catch {
+                print(error)
+            }
         }
     }
 
@@ -89,8 +93,12 @@ public enum Tracing {
         file: String = #file, line: UInt = #line,
         operation: @escaping @Sendable (_ localMemoir: Memoir) async throws -> Void
     ) {
-        Task.detached {
-            try await $localValue.withValue(memoir, operation: { try await operation(memoir) }, file: file, line: line)
+        let _ = Task.detached {
+            do {
+                try await $localValue.withValue(memoir, operation: { try await operation(memoir) }, file: file, line: line)
+            } catch {
+                print(error)
+            }
         }
     }
 }
