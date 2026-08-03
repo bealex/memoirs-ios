@@ -34,7 +34,8 @@ public final class PrintMemoir: Memoir {
                 case .disabled:
                     return nil
                 case .fastAndNonAccurate:
-                    return withUnsafePointer(to: Int(timeSinceReferenceDate + Date.timeIntervalBetween1970AndReferenceDate)) { pointer in
+                    // `time_t` is `Int` on Darwin and Linux but `Int64` on Windows, and `ctime` wants exactly it.
+                    return withUnsafePointer(to: time_t(timeSinceReferenceDate + Date.timeIntervalBetween1970AndReferenceDate)) { pointer in
                         var time = String(cString: ctime(pointer))
                         if let firstColon = time.firstIndex(of: ":"), let lastSpace = time.lastIndex(of: " ") {
                             time = String(time[time.index(firstColon, offsetBy: -2) ..< lastSpace])
