@@ -14,7 +14,7 @@ let swiftSettings: [SwiftSetting] = [
 
 let package = Package(
     name: "Memoirs",
-    platforms: [ .iOS(.v17), .tvOS(.v17), .watchOS(.v11), .macOS(.v15), .macCatalyst(.v17) ],
+    platforms: [ .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .macOS(.v15), .macCatalyst(.v18) ],
     products: [
         .library(name: "Memoirs", targets: [ "Memoirs" ]),
         .executable(name: "ExampleMemoirs", targets: [ "ExampleMemoirs" ]),
