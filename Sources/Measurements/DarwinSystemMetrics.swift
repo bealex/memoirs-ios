@@ -32,13 +32,8 @@ final class DarwinSystemMetrics: MetricsRetriever {
 
         defer {
             let size = MemoryLayout<thread_t>.size * Int(threadCount)
-            #if os(watchOS)
-            let address = threads.withMemoryRebound(to: Int32.self, capacity: 1) { value in
-                vm_address_t(bitPattern: value.pointee)
-            }
-            #else
-            let address: vm_offset_t = vm_address_t(bitPattern: threads)
-            #endif
+            // vm_address_t is UInt32 on arm64_32, so the pointer goes through the word-sized UInt.
+            let address = vm_address_t(UInt(bitPattern: threads))
             vm_deallocate(MachPortHolder.value, address, vm_size_t(size))
         }
 
